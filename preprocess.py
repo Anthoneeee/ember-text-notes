@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+from typing import List, Tuple
+
+
+def _load_utils_module():
+    """按绝对路径加载工具模块，避免动态评测时导入失败。"""
+    utils_path = Path(__file__).resolve().parent / "news_b_utils.py"
+    if not utils_path.exists():
+        raise FileNotFoundError(f"找不到工具模块: {utils_path}")
+    spec = importlib.util.spec_from_file_location("news_b_utils_local", utils_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载工具模块: {utils_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["news_b_utils_local"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+prepare_dataset_from_csv = _load_utils_module().prepare_dataset_from_csv
+
+
+def prepare_data(path: str) -> Tuple[List[str], List[int]]:
+    """
+    B 问第一版预处理函数。
+    返回：
+    - X: 文本输入列表
+    - y: 二分类标签列表（Fox=0, NBC=1）
+    """
+    prepared = prepare_dataset_from_csv(path)
+    return prepared.texts, prepared.labels
