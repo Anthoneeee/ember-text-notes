@@ -53,6 +53,8 @@ python -u Newsheadlines/scrape_headlines.py \
 Check the summary at the end, especially:
 
 - `headline_method_counts`
+- `clean_removed_duplicate_urls`
+- `clean_removed_duplicate_headlines`
 - `saved_raw`
 - `saved_clean`
 
@@ -68,6 +70,11 @@ Important training behavior:
 
 - Default input is `Newsheadlines/scraped_headlines_clean.csv`.
 - By default, the script rejects URL-only CSVs without headline/title/text columns.
+- By default, the script applies strict cleaning in `prepare_dataset_from_csv`:
+  - remove duplicate URLs
+  - remove duplicate headlines
+  - remove short headlines (`< 8` chars after normalization)
+  - remove symbol-only headlines
 - Validation metrics are computed on a split first, then the final exported model is retrained on the full dataset.
 
 If you intentionally want URL pseudo-text experiments:

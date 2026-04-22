@@ -1,0 +1,14 @@
+{
+  "run_date_local": "2026-04-22 18:47:28",
+  "input_csv": "/Users/anthony/PycharmProjects/pythonProject1/CIS5190/Newsheadlines/scraped_headlines_clean.csv",
+  "random_state": 42,
+  "test_size": 0.2,
+  "stress_frac": 0.5,
+  "train_rows_raw": 3042,
+  "test_rows_raw": 761,
+  "train_rows_strict": 3042,
+  "test_rows_strict": 761,
+  "stress_rows_raw": 4563,
+  "stress_rows_loose": 4563,
+  "stress_rows_strict": 3042
+}

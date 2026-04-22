@@ -506,6 +506,30 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Allow URL-slug fallback headline when page extraction fails",
     )
+    parser.add_argument(
+        "--remove-duplicate-urls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Remove duplicate URLs in cleaned output (default: enabled)",
+    )
+    parser.add_argument(
+        "--remove-duplicate-headlines",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Remove duplicate headlines in cleaned output (default: enabled)",
+    )
+    parser.add_argument(
+        "--min-headline-chars",
+        type=int,
+        default=8,
+        help="Drop headlines shorter than this length after cleanup (default: 8)",
+    )
+    parser.add_argument(
+        "--drop-symbol-only-headlines",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Drop headlines without any letters/digits (default: enabled)",
+    )
     return parser.parse_args()
 
 
@@ -532,6 +556,10 @@ def main() -> None:
     print(f"use_wayback: {not args.disable_wayback}")
     print(f"use_jina: {not args.disable_jina}")
     print(f"allow_url_fallback: {args.allow_url_fallback}")
+    print(f"remove_duplicate_urls: {args.remove_duplicate_urls}")
+    print(f"remove_duplicate_headlines: {args.remove_duplicate_headlines}")
+    print(f"min_headline_chars: {args.min_headline_chars}")
+    print(f"drop_symbol_only_headlines: {args.drop_symbol_only_headlines}")
 
     results: List[FetchResult] = []
     completed = 0
@@ -570,14 +598,47 @@ def main() -> None:
     output_raw.parent.mkdir(parents=True, exist_ok=True)
     raw_df.to_csv(output_raw, index=False)
 
-    # Build cleaned dataset: keep success + non-empty headline + valid label, then deduplicate.
-    clean_df = raw_df[(raw_df["success"]) & (raw_df["headline"].str.len() > 0)].copy()
+    # Build cleaned dataset with explicit filtering + deduplication controls.
+    clean_df = raw_df.copy()
+    clean_input_rows = len(clean_df)
+
+    clean_df = clean_df[clean_df["success"]].copy()
+    removed_not_success = clean_input_rows - len(clean_df)
+
     clean_df = clean_df[clean_df["label"].notna()].copy()
+    removed_no_label = clean_input_rows - removed_not_success - len(clean_df)
     clean_df["label"] = clean_df["label"].astype(int)
 
-    before_dedup = len(clean_df)
-    clean_df = clean_df.drop_duplicates(subset=["headline", "label"], keep="first").copy()
-    removed_dup = before_dedup - len(clean_df)
+    clean_df["headline"] = clean_df["headline"].fillna("").astype(str).map(clean_headline)
+    clean_df["url"] = clean_df["url"].fillna("").astype(str).str.strip()
+
+    before_empty_filter = len(clean_df)
+    clean_df = clean_df[clean_df["headline"].str.len() > 0].copy()
+    removed_empty = before_empty_filter - len(clean_df)
+
+    before_short_filter = len(clean_df)
+    if args.min_headline_chars > 0:
+        clean_df = clean_df[clean_df["headline"].str.len() >= args.min_headline_chars].copy()
+    removed_short = before_short_filter - len(clean_df)
+
+    before_symbol_filter = len(clean_df)
+    if args.drop_symbol_only_headlines:
+        clean_df = clean_df[
+            clean_df["headline"].map(lambda x: any(ch.isalnum() for ch in str(x)))
+        ].copy()
+    removed_symbol_only = before_symbol_filter - len(clean_df)
+
+    before_url_dedup = len(clean_df)
+    if args.remove_duplicate_urls:
+        clean_df["url_key"] = clean_df["url"].str.lower()
+        clean_df = clean_df.drop_duplicates(subset=["url_key"], keep="first").copy()
+    removed_dup_url = before_url_dedup - len(clean_df)
+
+    before_headline_dedup = len(clean_df)
+    if args.remove_duplicate_headlines:
+        clean_df["headline_key"] = clean_df["headline"].str.lower()
+        clean_df = clean_df.drop_duplicates(subset=["headline_key"], keep="first").copy()
+    removed_dup_headline = before_headline_dedup - len(clean_df)
 
     # Keep only fields used by downstream training.
     clean_df = clean_df[["url", "source", "label", "headline"]].reset_index(drop=True)
@@ -598,7 +659,13 @@ def main() -> None:
     print(f"raw_fail: {fail_count}")
     print(f"headline_method_counts: {method_counts}")
     print(f"clean_rows: {len(clean_df)}")
-    print(f"clean_removed_duplicates: {removed_dup}")
+    print(f"clean_removed_not_success: {removed_not_success}")
+    print(f"clean_removed_no_label: {removed_no_label}")
+    print(f"clean_removed_empty_headline: {removed_empty}")
+    print(f"clean_removed_short_headline: {removed_short}")
+    print(f"clean_removed_symbol_only_headline: {removed_symbol_only}")
+    print(f"clean_removed_duplicate_urls: {removed_dup_url}")
+    print(f"clean_removed_duplicate_headlines: {removed_dup_headline}")
     print(f"saved_raw: {output_raw.resolve()}")
     print(f"saved_clean: {output_clean.resolve()}")
 

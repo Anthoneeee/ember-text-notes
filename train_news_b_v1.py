@@ -76,6 +76,30 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable final full-dataset retraining after validation",
     )
+    parser.add_argument(
+        "--remove-duplicate-urls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Remove duplicate URLs during dataset preparation (default: enabled)",
+    )
+    parser.add_argument(
+        "--remove-duplicate-headlines",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Remove duplicate headlines during dataset preparation (default: enabled)",
+    )
+    parser.add_argument(
+        "--min-headline-chars",
+        type=int,
+        default=8,
+        help="Drop headlines shorter than this length after normalization (default: 8)",
+    )
+    parser.add_argument(
+        "--drop-symbol-only-headlines",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Drop headlines that do not contain letters or digits (default: enabled)",
+    )
     return parser.parse_args()
 
 
@@ -117,6 +141,10 @@ def main() -> None:
         args.input_csv,
         allow_url_fallback=args.allow_url_pseudo_text,
         require_text_column=not args.allow_url_pseudo_text,
+        remove_duplicate_urls=args.remove_duplicate_urls,
+        remove_duplicate_headlines=args.remove_duplicate_headlines,
+        min_headline_chars=args.min_headline_chars,
+        drop_symbol_only_headlines=args.drop_symbol_only_headlines,
     )
     X = prepared.texts
     y = np.asarray(prepared.labels, dtype=np.int64)
@@ -149,6 +177,13 @@ def main() -> None:
     print(f"val_samples: {len(X_val)}")
     print(f"val_accuracy: {acc:.6f}")
     print(f"val_macro_f1: {macro_f1:.6f}")
+    print(
+        "cleaning_config: "
+        f"remove_duplicate_urls={args.remove_duplicate_urls}, "
+        f"remove_duplicate_headlines={args.remove_duplicate_headlines}, "
+        f"min_headline_chars={args.min_headline_chars}, "
+        f"drop_symbol_only_headlines={args.drop_symbol_only_headlines}"
+    )
     print("classification_report:")
     print(report)
 
@@ -184,6 +219,10 @@ def main() -> None:
             "test_size": args.test_size,
             "max_features": args.max_features,
             "ngram_max": args.ngram_max,
+            "remove_duplicate_urls": args.remove_duplicate_urls,
+            "remove_duplicate_headlines": args.remove_duplicate_headlines,
+            "min_headline_chars": args.min_headline_chars,
+            "drop_symbol_only_headlines": args.drop_symbol_only_headlines,
         },
     }
     joblib.dump(payload, output_path)

@@ -1,0 +1,16 @@
+2026-04-22 18:47:27.772 python3[64249:6438371] Failure on line 688 in function id scheduleApplicationNotification(LSNotificationCode, NSWorkspaceNotificationCenter *): noErr == _LSModifyNotification(notificationID, 1, &code, 0, NULL, NULL, NULL)
+saved_results_csv: /Users/anthony/PycharmProjects/pythonProject1/CIS5190/deliverables/report/exploratory_results_step7.csv
+saved_figure: /Users/anthony/PycharmProjects/pythonProject1/CIS5190/deliverables/figures/exploratory_cleaning_shortcut_step7.png
+saved_summary_md: /Users/anthony/PycharmProjects/pythonProject1/CIS5190/deliverables/report/exploratory_summary_step7.md
+saved_metadata_json: /Users/anthony/PycharmProjects/pythonProject1/CIS5190/deliverables/manifests/exploratory_metadata_step7.json
+----- metrics preview -----
+        section                               scenario  accuracy  macro_f1  avg_infer_ms  train_rows  test_rows
+cleaning_effect                  real_data_loose_clean  0.800263  0.799055      0.013383        3042        761
+cleaning_effect                 real_data_strict_clean  0.800263  0.799055      0.013584        3042        761
+cleaning_effect                stress_data_loose_clean  0.759527  0.758023      0.021805        4563        761
+cleaning_effect               stress_data_strict_clean  0.800263  0.799055      0.015967        3042        761
+  shortcut_risk                   headline_to_headline  0.800263  0.799055      0.012943        3042        761
+  shortcut_risk                        url_to_headline  0.544021  0.390423      0.015274        3042        761
+  shortcut_risk                             url_to_url  0.967148  0.967006      0.010944        3042        761
+  shortcut_risk headline_plus_url_to_headline_plus_url  0.956636  0.956477      0.023094        3042        761
+  shortcut_risk     headline_plus_url_to_headline_only  0.653088  0.602705      0.014873        3042        761

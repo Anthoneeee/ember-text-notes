@@ -46,3 +46,14 @@
 - Final export mode: full_dataset_retrain_after_validation.
 - Post-update local evaluator accuracy on clean dataset: 0.963187.
 - Backed up model to `deliverables/model/news_b_tfidf_lr_full_retrain_20260422_015936.joblib`.
+
+## 2026-04-22 (Step 7: Exploratory Component)
+
+- Added reproducible experiment script: `explore_cleaning_shortcut_step7.py`.
+- Ran exploratory topic: "Data Cleaning and Shortcut Risk: Effects on Headline Classification Generalization".
+- Exported core artifacts:
+  - `deliverables/report/exploratory_results_step7.csv`
+  - `deliverables/report/exploratory_summary_step7.md`
+  - `deliverables/manifests/exploratory_metadata_step7.json`
+  - `deliverables/figures/exploratory_cleaning_shortcut_step7.png`
+- Logged run output: `deliverables/logs/exploratory_step7_20260422_1848.log`.

@@ -87,6 +87,10 @@ def prepare_dataset_from_csv(
     *,
     allow_url_fallback: bool = True,
     require_text_column: bool = False,
+    remove_duplicate_urls: bool = False,
+    remove_duplicate_headlines: bool = False,
+    min_headline_chars: int = 0,
+    drop_symbol_only_headlines: bool = False,
 ) -> PreparedData:
     """
     Build training/evaluation samples from CSV.
@@ -94,6 +98,11 @@ def prepare_dataset_from_csv(
     1) Prefer headline/title-like text columns.
     2) If allow_url_fallback=True, generate pseudo-headlines from URL when text is missing.
     3) Prefer explicit label/source columns; otherwise infer label from URL host.
+    4) Optional dataset cleaning controls:
+       - remove duplicate URLs
+       - remove duplicate headlines
+       - drop short headlines
+       - drop symbol-only headlines
     """
     csv_file = Path(csv_path)
     if not csv_file.exists():
@@ -115,6 +124,8 @@ def prepare_dataset_from_csv(
 
     texts: List[str] = []
     labels: List[int] = []
+    seen_urls: set[str] = set()
+    seen_headlines: set[str] = set()
 
     for _, row in df.iterrows():
         # Resolve text first
@@ -134,6 +145,12 @@ def prepare_dataset_from_csv(
             else:
                 continue
 
+        if remove_duplicate_urls and url_val:
+            url_key = url_val.strip().lower()
+            if url_key in seen_urls:
+                continue
+            seen_urls.add(url_key)
+
         # Resolve label next
         label_val: Optional[int] = None
         if label_col is not None and pd.notna(row[label_col]):
@@ -149,8 +166,22 @@ def prepare_dataset_from_csv(
         if text_val == "":
             continue
 
+        if min_headline_chars > 0 and len(text_val) < min_headline_chars:
+            continue
+
+        if drop_symbol_only_headlines:
+            if not any(ch.isalnum() for ch in text_val):
+                continue
+
+        if remove_duplicate_headlines:
+            headline_key = text_val.strip().lower()
+            if headline_key in seen_headlines:
+                continue
+
         texts.append(text_val)
         labels.append(label_val)
+        if remove_duplicate_headlines:
+            seen_headlines.add(text_val.strip().lower())
 
     if not texts:
         raise ValueError(
