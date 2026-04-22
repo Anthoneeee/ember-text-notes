@@ -1,0 +1,74 @@
+{
+  "step": 4,
+  "generated_at": "2026-04-22T01:26:50-04:00",
+  "dataset": {
+    "path": "Newsheadlines/scraped_headlines_clean.csv",
+    "num_samples": 3803,
+    "class_distribution": {
+      "0_FoxNews": 2000,
+      "1_NBC": 1803
+    }
+  },
+  "model": {
+    "path": "Newsheadlines/artifacts/news_b_tfidf_lr.joblib",
+    "algorithm": "TF-IDF + LogisticRegression",
+    "label_map": {
+      "0": "FoxNews",
+      "1": "NBC"
+    }
+  },
+  "training_split_metrics": {
+    "train_samples": 3042,
+    "val_samples": 761,
+    "val_accuracy": 0.800263,
+    "val_macro_f1": 0.799055,
+    "source_log": "deliverables/logs/train_step2_20260422_011945.log"
+  },
+  "full_dataset_metrics": {
+    "accuracy": 0.9334735734946095,
+    "macro_f1": 0.9332661944053436,
+    "weighted_f1": 0.9334589004458407,
+    "class_0_foxnews": {
+      "precision": 0.9334987593052109,
+      "recall": 0.9405,
+      "f1": 0.936986301369863,
+      "support": 2000
+    },
+    "class_1_nbc": {
+      "precision": 0.9334451901565995,
+      "recall": 0.9256794231835829,
+      "f1": 0.9295460874408242,
+      "support": 1803
+    }
+  },
+  "baseline_reference": {
+    "accuracy": 0.6649,
+    "current_minus_baseline": 0.2685735734946094
+  },
+  "training_params": {
+    "input_csv": "Newsheadlines/scraped_headlines_clean.csv",
+    "test_size": 0.2,
+    "random_state": 42,
+    "max_features": 30000,
+    "ngram_max": 2,
+    "tfidf": {
+      "lowercase": true,
+      "strip_accents": "unicode",
+      "ngram_range": [
+        1,
+        2
+      ],
+      "min_df": 2,
+      "max_df": 0.98,
+      "max_features": 30000,
+      "sublinear_tf": true
+    },
+    "logistic_regression": {
+      "max_iter": 2000,
+      "solver": "liblinear",
+      "C": 2.0,
+      "class_weight": "balanced",
+      "random_state": 42
+    }
+  }
+}

@@ -1,0 +1,4 @@
+setting,accuracy,macro_f1,weighted_f1,source,notes
+Baseline (Course Doc),0.6649,0.66,0.66,course baseline report excerpt,Baseline from project document; macro/weighted F1 rounded from report table
+Current Model (Validation Split),0.800263,0.799055,0.7999,train_step2 log,Comparable internal split result (train_news_b_v1.py)
+Current Model (Full Dataset Eval),0.933474,0.933266,0.933459,metrics_summary_step4,In-sample style snapshot on cleaned dataset; not hidden-test equivalent

@@ -1,0 +1,37 @@
+{
+  "input_url_rows": 3805,
+  "raw_rows": 3805,
+  "raw_success": 3805,
+  "raw_fail": 0,
+  "clean_rows": 3803,
+  "removed_from_raw_to_clean": 2,
+  "valid_rows_before_dedup": 3805,
+  "rows_after_dedup": 3803,
+  "removed_duplicates_headline_label": 2,
+  "clean_empty_headline": 0,
+  "clean_missing_label": 0,
+  "clean_dup_headline_label": 0,
+  "source_label_mismatch_clean": 0,
+  "raw_label_counts": {
+    "0": 2000,
+    "1": 1805
+  },
+  "clean_label_counts": {
+    "0": 2000,
+    "1": 1803
+  },
+  "raw_source_counts": {
+    "FoxNews": 2000,
+    "NBC": 1805
+  },
+  "clean_source_counts": {
+    "FoxNews": 2000,
+    "NBC": 1803
+  },
+  "headline_method_counts_raw": {
+    "direct_html": 3801,
+    "wayback_html": 2,
+    "direct_html_variant": 1,
+    "url_slug_fallback": 1
+  }
+}

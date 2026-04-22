@@ -1,0 +1,11 @@
+metric,value
+full_accuracy,0.933474
+full_macro_f1,0.933266
+full_weighted_f1,0.933459
+val_accuracy,0.800263
+val_macro_f1,0.799055
+num_samples,3803
+class_0_foxnews,2000
+class_1_nbc,1803
+baseline_accuracy,0.664900
+accuracy_margin,0.268574

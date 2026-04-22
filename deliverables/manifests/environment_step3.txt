@@ -1,0 +1,7 @@
+python 3.10.20 | packaged by conda-forge | (main, Mar  5 2026, 17:06:34) [Clang 19.1.7 ]
+platform macOS-26.4-arm64-arm-64bit
+numpy 2.2.6
+pandas 2.3.3
+scikit_learn 1.7.2
+joblib 1.5.3
+torch 2.10.0

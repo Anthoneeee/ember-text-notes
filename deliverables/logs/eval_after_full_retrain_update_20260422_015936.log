@@ -1,0 +1,4 @@
+num_examples: 3803
+avg_infer_ms: 0.020
+total_infer_s: 0.075
+accuracy: 0.963187

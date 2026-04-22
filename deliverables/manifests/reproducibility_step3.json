@@ -1,0 +1,47 @@
+{
+  "step": 3,
+  "generated_at": "2026-04-22T01:22:54-04:00",
+  "task": "Freeze reproducible experiment records",
+  "environment": {
+    "conda_env": "cis5450",
+    "python": "3.10.20",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "scikit_learn": "1.7.2",
+    "joblib": "1.5.3",
+    "torch": "2.10.0"
+  },
+  "artifacts": {
+    "dataset": {
+      "path": "Newsheadlines/scraped_headlines_clean.csv",
+      "sha256": "f43c90e3ccd88e3206ccb188599ac0ffea5a1ba438b12ea0eb91b0b6970d1922"
+    },
+    "final_model": {
+      "path": "Newsheadlines/artifacts/news_b_tfidf_lr.joblib",
+      "sha256": "fe418c6636ce619a609230b1181de76148299294300b0a9198e85cfc9d54019e"
+    },
+    "retrain_model": {
+      "path": "deliverables/temp/retrain_step3_20260422_012254.joblib",
+      "sha256": "2ec35183540f2f17740678e1b4da07f987e5e9409f0b5b64294e1d089a34e4e1"
+    }
+  },
+  "metrics": {
+    "train_val_accuracy": 0.800263,
+    "train_val_macro_f1": 0.799055,
+    "eval_accuracy": 0.933474,
+    "eval_num_examples": 3803,
+    "eval_avg_infer_ms": 0.020
+  },
+  "baseline": {
+    "source": "CIS 4190_5190 Final Project Descriptions",
+    "accuracy": 0.6649
+  },
+  "checks": {
+    "beats_baseline": true,
+    "accuracy_margin": 0.268574
+  },
+  "logs": [
+    "deliverables/logs/retrain_step3_20260422_012254.log",
+    "deliverables/logs/eval_step3_20260422_012254.log"
+  ]
+}

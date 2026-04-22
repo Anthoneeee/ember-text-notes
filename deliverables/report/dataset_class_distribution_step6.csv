@@ -1,0 +1,5 @@
+dataset,class,count
+raw,FoxNews(0),2000
+raw,NBC(1),1805
+clean,FoxNews(0),2000
+clean,NBC(1),1803

@@ -1,0 +1,35 @@
+num_samples: 3803
+train_samples: 3042
+val_samples: 761
+val_accuracy: 0.800263
+val_macro_f1: 0.799055
+classification_report:
+              precision    recall  f1-score   support
+
+           0     0.7952    0.8350    0.8146       400
+           1     0.8065    0.7618    0.7835       361
+
+    accuracy                         0.8003       761
+   macro avg     0.8008    0.7984    0.7991       761
+weighted avg     0.8006    0.8003    0.7999       761
+
+final_train_mode: full_dataset_retrain_after_validation
+saved_model: Newsheadlines/artifacts/news_b_tfidf_lr.joblib
+saved_meta_json:
+{
+  "model": "tfidf+logistic_regression",
+  "label_map": {
+    "0": "FoxNews",
+    "1": "NBC"
+  },
+  "num_samples": 3803,
+  "train_samples": 3042,
+  "val_samples": 761,
+  "val_accuracy": 0.8002628120893561,
+  "val_macro_f1": 0.7990549649086234,
+  "final_retrain_on_full": true,
+  "random_state": 42,
+  "test_size": 0.2,
+  "max_features": 30000,
+  "ngram_max": 2
+}

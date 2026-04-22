@@ -6,6 +6,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, f1_score
@@ -14,57 +15,22 @@ from sklearn.pipeline import Pipeline
 
 from news_b_utils import prepare_dataset_from_csv
 
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="B 问第一版训练脚本（TF-IDF + LR）")
-    parser.add_argument(
-        "--input-csv",
-        type=str,
-        default="Newsheadlines/url_only_data.csv",
-        help="输入 CSV 路径（支持 url 或 headline/title 列）",
-    )
-    parser.add_argument(
-        "--output-model",
-        type=str,
-        default="Newsheadlines/artifacts/news_b_tfidf_lr.joblib",
-        help="导出的模型文件路径",
-    )
-    parser.add_argument("--test-size", type=float, default=0.2, help="验证集比例")
-    parser.add_argument("--random-state", type=int, default=42, help="随机种子")
-    parser.add_argument("--max-features", type=int, default=30000, help="TF-IDF 最大特征数")
-    parser.add_argument("--ngram-max", type=int, default=2, help="TF-IDF ngram 上限")
-    return parser.parse_args()
+_TEXT_COL_CANDIDATES = ("headline", "title", "text", "content", "news_title")
 
 
-def main() -> None:
-    args = parse_args()
-
-    # 第一步：读取并构建文本样本与标签
-    prepared = prepare_dataset_from_csv(args.input_csv)
-    X = prepared.texts
-    y = np.asarray(prepared.labels, dtype=np.int64)
-
-    # 第二步：分层划分训练/验证，保证类别比例一致
-    X_train, X_val, y_train, y_val = train_test_split(
-        X,
-        y,
-        test_size=args.test_size,
-        random_state=args.random_state,
-        stratify=y,
-    )
-
-    # 第三步：第一版模型，先用稳定可解释的 TF-IDF + 逻辑回归
-    pipeline = Pipeline(
+def _build_pipeline(max_features: int, ngram_max: int, random_state: int) -> Pipeline:
+    """Build a consistent TF-IDF + LogisticRegression pipeline."""
+    return Pipeline(
         steps=[
             (
                 "tfidf",
                 TfidfVectorizer(
                     lowercase=True,
                     strip_accents="unicode",
-                    ngram_range=(1, args.ngram_max),
+                    ngram_range=(1, ngram_max),
                     min_df=2,
                     max_df=0.98,
-                    max_features=args.max_features,
+                    max_features=max_features,
                     sublinear_tf=True,
                 ),
             ),
@@ -75,16 +41,105 @@ def main() -> None:
                     solver="liblinear",
                     C=2.0,
                     class_weight="balanced",
-                    random_state=args.random_state,
+                    random_state=random_state,
                 ),
             ),
         ]
     )
 
-    pipeline.fit(X_train, y_train)
 
-    # 第四步：在验证集上输出核心指标，作为第一版基线
-    y_pred = pipeline.predict(X_val)
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Project B training script (TF-IDF + LR)")
+    parser.add_argument(
+        "--input-csv",
+        type=str,
+        default="Newsheadlines/scraped_headlines_clean.csv",
+        help="Input CSV path (recommended: cleaned CSV with real scraped headlines)",
+    )
+    parser.add_argument(
+        "--output-model",
+        type=str,
+        default="Newsheadlines/artifacts/news_b_tfidf_lr.joblib",
+        help="Output model artifact path",
+    )
+    parser.add_argument("--test-size", type=float, default=0.2, help="Validation split ratio")
+    parser.add_argument("--random-state", type=int, default=42, help="Random seed")
+    parser.add_argument("--max-features", type=int, default=30000, help="Maximum TF-IDF feature count")
+    parser.add_argument("--ngram-max", type=int, default=2, help="Upper bound for TF-IDF n-grams")
+    parser.add_argument(
+        "--allow-url-pseudo-text",
+        action="store_true",
+        help="Allow URL-derived pseudo text when headline columns are missing (off by default)",
+    )
+    parser.add_argument(
+        "--no-final-retrain-on-full",
+        action="store_true",
+        help="Disable final full-dataset retraining after validation",
+    )
+    return parser.parse_args()
+
+
+def _assert_real_headline_input(csv_path: str, allow_url_pseudo_text: bool) -> None:
+    """
+    By default, require real headline/title/text content for training inputs.
+    """
+    if allow_url_pseudo_text:
+        return
+
+    df = pd.read_csv(csv_path)
+    lower_map = {c.lower(): c for c in df.columns}
+    text_col = None
+    for cand in _TEXT_COL_CANDIDATES:
+        if cand in lower_map:
+            text_col = lower_map[cand]
+            break
+
+    if text_col is None:
+        raise ValueError(
+            "Input CSV does not include headline/title/text columns. "
+            "Use Newsheadlines/scraped_headlines_clean.csv or explicitly pass "
+            "--allow-url-pseudo-text."
+        )
+
+    non_empty = df[text_col].notna() & (df[text_col].astype(str).str.strip() != "")
+    if int(non_empty.sum()) == 0:
+        raise ValueError(
+            f"Text column {text_col!r} is empty. Please verify the input contains real headlines."
+        )
+
+
+def main() -> None:
+    args = parse_args()
+    _assert_real_headline_input(args.input_csv, args.allow_url_pseudo_text)
+
+    # Step 1: load and prepare text samples + labels
+    prepared = prepare_dataset_from_csv(
+        args.input_csv,
+        allow_url_fallback=args.allow_url_pseudo_text,
+        require_text_column=not args.allow_url_pseudo_text,
+    )
+    X = prepared.texts
+    y = np.asarray(prepared.labels, dtype=np.int64)
+
+    # Step 2: stratified train/validation split
+    X_train, X_val, y_train, y_val = train_test_split(
+        X,
+        y,
+        test_size=args.test_size,
+        random_state=args.random_state,
+        stratify=y,
+    )
+
+    # Step 3: fit on training split for validation metrics
+    val_pipeline = _build_pipeline(
+        max_features=args.max_features,
+        ngram_max=args.ngram_max,
+        random_state=args.random_state,
+    )
+    val_pipeline.fit(X_train, y_train)
+
+    # Step 4: report core validation metrics
+    y_pred = val_pipeline.predict(X_val)
     acc = accuracy_score(y_val, y_pred)
     macro_f1 = f1_score(y_val, y_pred, average="macro")
     report = classification_report(y_val, y_pred, digits=4)
@@ -97,16 +152,38 @@ def main() -> None:
     print("classification_report:")
     print(report)
 
-    # 第五步：导出模型与基础元信息，供 model.py 推理加载
+    # Step 5: by default, retrain on full dataset for final export
+    final_retrain_on_full = not args.no_final_retrain_on_full
+    if final_retrain_on_full:
+        final_pipeline = _build_pipeline(
+            max_features=args.max_features,
+            ngram_max=args.ngram_max,
+            random_state=args.random_state,
+        )
+        final_pipeline.fit(X, y)
+        print("final_train_mode: full_dataset_retrain_after_validation")
+    else:
+        final_pipeline = val_pipeline
+        print("final_train_mode: train_split_only_no_full_retrain")
+
+    # Step 6: export model and metadata for inference loading
     output_path = Path(args.output_model)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "pipeline": pipeline,
+        "pipeline": final_pipeline,
         "meta": {
             "model": "tfidf+logistic_regression",
             "label_map": {"0": "FoxNews", "1": "NBC"},
             "num_samples": len(X),
+            "train_samples": len(X_train),
+            "val_samples": len(X_val),
+            "val_accuracy": float(acc),
+            "val_macro_f1": float(macro_f1),
+            "final_retrain_on_full": final_retrain_on_full,
             "random_state": args.random_state,
+            "test_size": args.test_size,
+            "max_features": args.max_features,
+            "ngram_max": args.ngram_max,
         },
     }
     joblib.dump(payload, output_path)
