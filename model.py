@@ -1,99 +1,188 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
+import html
+import io
+import re
 from pathlib import Path
 from typing import Any, Iterable, List
+from urllib.parse import unquote, urlparse
 
 import joblib
+import torch
 from torch import nn
 
-
-def _load_utils_module():
-    """Load utility module by absolute path for robust runtime imports."""
-    utils_path = Path(__file__).resolve().parent / "news_b_utils.py"
-    if not utils_path.exists():
-        raise FileNotFoundError(f"Utility module not found: {utils_path}")
-    spec = importlib.util.spec_from_file_location("news_b_utils_local", utils_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Failed to load utility module: {utils_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["news_b_utils_local"] = module
-    spec.loader.exec_module(module)
-    return module
+_MISSING_HEADLINE_TEXT = "missing headline text"
 
 
-_utils = _load_utils_module()
-normalize_text = _utils.normalize_text
-url_to_pseudo_headline = _utils.url_to_pseudo_headline
+def normalize_quotes(text: str) -> str:
+    return (
+        text.replace("\u2019", "'")
+        .replace("\u2018", "'")
+        .replace("\u201c", '"')
+        .replace("\u201d", '"')
+    )
+
+
+def mask_outlet_names(text: str) -> str:
+    text = re.sub(r"\bFox News\b", "the outlet", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bNBC News\b", "the outlet", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bMSNBC\b", "the outlet", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bTODAY\b", "the outlet", text)
+    return text
+
+
+def normalize_text(text: str) -> str:
+    text = html.unescape(str(text))
+    text = normalize_quotes(text)
+    text = mask_outlet_names(text)
+    text = re.sub(r"https?://\S+|www\.\S+", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b[\w.-]+\.(?:com|org|net|gov|edu|co|io)\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"\b(?:urlpath|domain|host|section_[a-z0-9_]+|subsection_[a-z0-9_]+)\b",
+        " ",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"\b(?:rcna|ncna|nca|fnc)\d+\b", " ", text, flags=re.IGNORECASE)
+    text = text.replace("\n", " ").replace("\t", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 class Model(nn.Module):
     """
-    Project B inference wrapper.
-    Notes:
-    - Loads a trained sklearn Pipeline via joblib
-    - Keeps compatibility with the evaluator's `predict(batch)` interface
+    KK submission model wrapper.
+    It uses the original char_wb TF-IDF + LogisticRegression pipeline, packed
+    into model.pt so the HF uploader can use the standard three-file format.
     """
 
     def __init__(self, weights_path: str | None = None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.pipeline = self._load_pipeline(weights_path)
+        self.register_buffer("artifact_bytes", torch.zeros((1,), dtype=torch.uint8))
+        self.register_buffer("artifact_len", torch.zeros((1,), dtype=torch.int64))
+        self.pipeline = None
+        self.decision_threshold = None
+        self.decision_threshold_kind = None
+        self._load_pipeline(weights_path)
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        payload = state_dict.get("artifact_bytes")
+        if isinstance(payload, torch.Tensor) and tuple(payload.shape) != tuple(self.artifact_bytes.shape):
+            self._buffers["artifact_bytes"] = torch.zeros_like(payload, dtype=torch.uint8)
+        artifact_len = state_dict.get("artifact_len")
+        if isinstance(artifact_len, torch.Tensor) and tuple(artifact_len.shape) != tuple(self.artifact_len.shape):
+            self._buffers["artifact_len"] = torch.zeros_like(artifact_len, dtype=torch.int64)
+        result = super().load_state_dict(state_dict, strict=strict)
+        self._pipeline_from_buffers()
+        return result
 
     @staticmethod
-    def _default_model_path() -> Path:
-        return Path(__file__).resolve().parent / "Newsheadlines" / "artifacts" / "news_b_tfidf_lr.joblib"
+    def _default_artifact_path() -> Path:
+        root = Path(__file__).resolve().parent
+        preferred = root / "Newsheadlines" / "artifacts" / "news_b_augmented_ensemble.joblib"
+        if preferred.exists():
+            return preferred
+        return root / "Newsheadlines" / "artifacts" / "news_b_char_lr.joblib"
 
-    def _resolve_model_path(self, weights_path: str | None) -> Path:
-        # Evaluator may pass "__no_weights__.pth"; ignore that placeholder.
+    @staticmethod
+    def _default_checkpoint_path() -> Path:
+        return Path(__file__).resolve().parent / "model.pt"
+
+    def _load_pipeline(self, weights_path: str | None) -> None:
+        candidates: list[Path] = []
+        if weights_path and weights_path != "__no_weights__.pth":
+            candidates.append(Path(weights_path))
+        candidates.append(self._default_checkpoint_path())
+
+        for candidate in candidates:
+            if candidate.exists() and candidate.suffix.lower() in {".pt", ".pth"}:
+                checkpoint = torch.load(candidate, map_location="cpu")
+                if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+                    checkpoint = checkpoint["state_dict"]
+                if isinstance(checkpoint, dict) and "artifact_bytes" in checkpoint:
+                    cleaned = {str(k).removeprefix("module.").removeprefix("model."): v for k, v in checkpoint.items()}
+                    self.load_state_dict(cleaned, strict=False)
+                    return
+
         if weights_path and weights_path != "__no_weights__.pth":
             candidate = Path(weights_path)
-            if candidate.suffix.lower() in {".joblib", ".pkl"} and candidate.exists():
-                return candidate
-        return self._default_model_path()
+            if candidate.exists() and candidate.suffix.lower() in {".joblib", ".pkl"}:
+                payload = joblib.load(candidate)
+                self._set_pipeline_payload(payload)
+                return
 
-    def _load_pipeline(self, weights_path: str | None):
-        model_path = self._resolve_model_path(weights_path)
-        if not model_path.exists():
-            raise FileNotFoundError(
-                f"Model file not found: {model_path}. Run train_news_b_v1.py first."
-            )
-        payload = joblib.load(model_path)
+        artifact = self._default_artifact_path()
+        if artifact.exists():
+            payload = joblib.load(artifact)
+            self._set_pipeline_payload(payload)
+            return
+        raise FileNotFoundError("No KK model artifact found. Include model.pt with model.py and preprocess.py.")
+
+    def _set_pipeline_payload(self, payload: Any) -> None:
+        self.decision_threshold = None
+        self.decision_threshold_kind = None
         if isinstance(payload, dict) and "pipeline" in payload:
-            return payload["pipeline"]
-        return payload
+            self.pipeline = payload["pipeline"]
+            meta = payload.get("meta") or {}
+            if isinstance(meta, dict) and meta.get("decision_threshold") is not None:
+                self.decision_threshold = float(meta["decision_threshold"])
+                self.decision_threshold_kind = str(meta.get("decision_threshold_kind") or "proba")
+            return
+        self.pipeline = payload
+
+    def _pipeline_from_buffers(self):
+        n = int(self.artifact_len.detach().cpu().item())
+        raw = bytes(self.artifact_bytes.detach().cpu().tolist()[:n])
+        payload = joblib.load(io.BytesIO(raw))
+        self._set_pipeline_payload(payload)
+        return self.pipeline
 
     @staticmethod
     def _coerce_item_to_text(item: Any) -> str:
-        """
-        Normalize one batch item to text.
-        - URL input -> pseudo-headline text
-        - dict input -> prefer headline/title/text/url fields
-        - otherwise -> string conversion
-        """
         if isinstance(item, dict):
             for key in ["headline", "title", "text", "content"]:
                 if key in item and item[key]:
                     return normalize_text(str(item[key]))
             if "url" in item and item["url"]:
-                return normalize_text(url_to_pseudo_headline(str(item["url"])))
+                return _MISSING_HEADLINE_TEXT
             return normalize_text(str(item))
 
         text = str(item)
         if text.startswith("http://") or text.startswith("https://"):
-            return normalize_text(url_to_pseudo_headline(text))
+            return _MISSING_HEADLINE_TEXT
         return normalize_text(text)
 
-    def eval(self):
-        # Keep nn.Module semantics; return self for chain compatibility.
-        return super().eval()
-
     def predict(self, batch: Iterable[Any]) -> List[int]:
+        if self.pipeline is None:
+            raise RuntimeError("Model pipeline was not loaded.")
         texts = [self._coerce_item_to_text(x) for x in batch]
+        if (
+            self.decision_threshold is not None
+            and self.decision_threshold_kind != "decision"
+            and hasattr(self.pipeline, "predict_proba")
+        ):
+            classes = list(getattr(self.pipeline, "classes_", []))
+            if 1 in classes:
+                proba = self.pipeline.predict_proba(texts)
+                one_idx = classes.index(1)
+                return [int(p >= self.decision_threshold) for p in proba[:, one_idx]]
+        if (
+            self.decision_threshold is not None
+            and self.decision_threshold_kind == "decision"
+            and hasattr(self.pipeline, "decision_function")
+        ):
+            classes = list(getattr(self.pipeline, "classes_", []))
+            if len(classes) == 2 and 1 in classes:
+                scores = self.pipeline.decision_function(texts)
+                if getattr(scores, "ndim", 1) == 1:
+                    if classes[1] != 1:
+                        scores = -scores
+                else:
+                    scores = scores[:, classes.index(1)]
+                return [int(float(score) >= self.decision_threshold) for score in scores]
         preds = self.pipeline.predict(texts)
         return [int(p) for p in preds]
 
 
 def get_model() -> Model:
-    """Factory function expected by the evaluator."""
     return Model()

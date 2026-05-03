@@ -1,151 +1,92 @@
-# CIS 4190/5190 Project B: News Source Classification
+# CIS 4190/5190 Project B: News Headline Classifier
 
-This project builds a binary text classifier to predict whether a headline is from Fox News (`0`) or NBC (`1`).
+This repository contains the Project B submission for classifying whether a news headline
+comes from Fox News (`0`) or NBC News (`1`).
 
-## Overview
+## Current Best Submission
 
-The pipeline has three stages:
+Observed Hugging Face leaderboard accuracy:
 
-1. Scrape headlines from URL lists.
-2. Train a TF-IDF + Logistic Regression model.
-3. Evaluate the model with the local Project B evaluator.
+- `0.8741666666666666`
 
-## Environment Setup
+Current best variant:
 
-Use Python `3.10` (recommended with `conda`):
+- `cur_nb_sgdcal_t5525`
+- decision threshold: `0.5525`
+- headline-only ensemble using TF-IDF/LR style branches plus ComplementNB and calibrated SGD
 
-```bash
-conda create -n cis5450 python=3.10 -y
-conda activate cis5450
-pip install pandas numpy scikit-learn requests beautifulsoup4 joblib torch
-```
-
-All commands below assume you run from the project root (the folder containing `model.py`).
-
-## Key Files
-
-- `Newsheadlines/scrape_headlines.py`: headline scraping and cleaning pipeline
-- `Newsheadlines/url_only_data.csv`: starter URL list
-- `Newsheadlines/scraped_headlines_raw.csv`: raw scrape output with metadata
-- `Newsheadlines/scraped_headlines_clean.csv`: cleaned dataset for training
-- `train_news_b_v1.py`: training script
-- `model.py`: inference wrapper used by evaluator
-- `preprocess.py`: preprocessing entry for evaluator
-- `Newsheadlines/eval_project_b.py`: local evaluation script
-
-## Recommended Workflow
-
-### 1. Scrape Headlines
-
-```bash
-python -u Newsheadlines/scrape_headlines.py \
-  --input-csv Newsheadlines/url_only_data.csv \
-  --output-raw Newsheadlines/scraped_headlines_raw.csv \
-  --output-clean Newsheadlines/scraped_headlines_clean.csv \
-  --max-workers 4 \
-  --timeout 10 \
-  --retries 1 \
-  --min-delay 0.15 \
-  --max-delay 0.55 \
-  --allow-url-fallback
-```
-
-Check the summary at the end, especially:
-
-- `headline_method_counts`
-- `clean_removed_duplicate_urls`
-- `clean_removed_duplicate_headlines`
-- `saved_raw`
-- `saved_clean`
-
-### 2. Train Model
-
-```bash
-python train_news_b_v1.py \
-  --input-csv Newsheadlines/scraped_headlines_clean.csv \
-  --output-model Newsheadlines/artifacts/news_b_tfidf_lr.joblib
-```
-
-Important training behavior:
-
-- Default input is `Newsheadlines/scraped_headlines_clean.csv`.
-- By default, the script rejects URL-only CSVs without headline/title/text columns.
-- By default, the script applies strict cleaning in `prepare_dataset_from_csv`:
-  - remove duplicate URLs
-  - remove duplicate headlines
-  - remove short headlines (`< 8` chars after normalization)
-  - remove symbol-only headlines
-- Validation metrics are computed on a split first, then the final exported model is retrained on the full dataset.
-
-If you intentionally want URL pseudo-text experiments:
-
-```bash
-python train_news_b_v1.py \
-  --input-csv Newsheadlines/url_only_data.csv \
-  --allow-url-pseudo-text
-```
-
-### 3. Evaluate Locally
-
-```bash
-python Newsheadlines/eval_project_b.py \
-  --model model.py \
-  --preprocess preprocess.py \
-  --csv Newsheadlines/scraped_headlines_clean.csv \
-  --batch-size 64
-```
-
-## Quick Evaluation (No Retraining)
-
-If `Newsheadlines/artifacts/news_b_tfidf_lr.joblib` already exists:
-
-```bash
-python Newsheadlines/eval_project_b.py \
-  --model model.py \
-  --preprocess preprocess.py \
-  --csv Newsheadlines/scraped_headlines_clean.csv \
-  --batch-size 64
-```
-
-## Final Code + Data Artifacts
-
-Current minimal set:
+The active root submission files are:
 
 - `model.py`
 - `preprocess.py`
-- `news_b_utils.py`
-- `train_news_b_v1.py`
-- `Newsheadlines/scrape_headlines.py`
-- `Newsheadlines/artifacts/news_b_tfidf_lr.joblib`
-- `deliverables/dataset/scraped_headlines_clean_final.csv`
+- `model.pt`
 
-## Troubleshooting
+These are identical to the copies in:
 
-### `No module named torch`
+- `submission_hf_urlfetch/`
+- `experiments/submission_hf_best_8742_cur_nb_sgdcal_t5525/`
 
-Install in current environment:
+Use the root files or `submission_hf_urlfetch/` for Hugging Face upload. The `experiments/`
+copy is kept as a stable backup of the same best version.
+
+## Compliance Notes
+
+Project B is a headline classification task. URL handling is limited to obtaining the
+article headline text when the evaluator provides URL-only rows.
+
+The submitted feature text does not include URL domains, URL paths, article ids, or source
+leaking tokens. Outlet names are also masked during normalization. If a URL-only CSV does
+not include labels, `preprocess.py` may infer the target `y` from the URL host so the
+evaluator can compute accuracy, but that URL information is not returned as model input.
+
+## Runtime Requirements
+
+The model artifact was serialized with:
+
+- Python 3.x
+- `torch`
+- `pandas`
+- `scikit-learn==1.7.2`
+- `joblib`
+
+Use the `cis5450` conda environment locally if available:
 
 ```bash
-pip install torch
+conda run -n cis5450 python -m py_compile model.py preprocess.py
+conda run -n cis5450 python -c "import model; m=model.get_model(); print(m.decision_threshold, m.decision_threshold_kind)"
 ```
 
-### Missing evaluator arguments
+Using an older scikit-learn version such as `1.1.1` can fail when loading `model.pt`,
+because the packed estimator was built with `1.7.2`.
 
-`eval_project_b.py` requires:
+## Main Files
 
-- `--model`
-- `--preprocess`
-- `--csv`
+- `model.py`: HF-compatible model wrapper with `get_model()`.
+- `preprocess.py`: HF-compatible `prepare_data(csv_path)` implementation.
+- `model.pt`: packed trained model artifact.
+- `submission_hf_urlfetch/`: clean upload copy of the current best three files.
+- `experiments/submission_hf_best_8742_cur_nb_sgdcal_t5525/`: stable backup of the current best three files.
+- `Newsheadlines/scrape_headlines.py`: headline scraping utility.
+- `Newsheadlines/eval_project_b.py`: local evaluator utility.
+- `deliverables/dataset/`: cleaned dataset artifacts for the final report/submission.
+- `deliverables/external_headlines/`: collected external headline data and raw scrape outputs.
+- `deliverables/figures/`: report figure assets.
+- `deliverables/report/`: report tables and notes.
+- `deliverables/manifests/`: reproducibility notes and final packaging helpers.
 
-### Frequent `403/406` during scraping
+## Final Deliverables Still Needed
 
-Current scraper already includes:
+Per the project documents, the final course submission should include:
 
-- request delays
-- retry logic
-- URL variants
-- Wayback fallback
-- Jina mirror fallback
-- optional URL-slug fallback
+- collected dataset
+- trained model files
+- 5-page project report
+- Hugging Face Dataset link in the report
+- model metric line chart(s), including the baseline metric
+- clear explanation of data collection, cleaning, modeling, evaluation, and leaderboard selection
 
-To be more conservative, reduce concurrency (for example `--max-workers 2`).
+The Hugging Face model upload itself only needs:
+
+- `model.py`
+- `preprocess.py`
+- `model.pt`
