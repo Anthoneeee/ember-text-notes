@@ -5,6 +5,7 @@
 - [x] Best model backup ready (`experiments/submission_hf_best_8742_cur_nb_sgdcal_t5525/`)
 - [x] Figures ready (`deliverables/figures/`)
 - [x] Leaderboard-tested best candidate recorded (`0.8741666666666666`)
+- [x] Hugging Face Dataset created (`https://huggingface.co/datasets/Anthoneeee/cis5190-project-b-news-headlines`)
 - [ ] 5-page report ready (`deliverables/report/`)
 - [ ] Hugging Face Dataset link added to report
 - [ ] Report metrics updated to current best (`0.8741666666666666`)

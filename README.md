@@ -9,6 +9,10 @@ Observed Hugging Face leaderboard accuracy:
 
 - `0.8741666666666666`
 
+Hugging Face Dataset for collected data:
+
+- https://huggingface.co/datasets/Anthoneeee/cis5190-project-b-news-headlines
+
 Current best variant:
 
 - `cur_nb_sgdcal_t5525`
